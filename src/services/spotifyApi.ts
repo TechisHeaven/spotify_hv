@@ -65,7 +65,7 @@ const createSpotifyApi = (token: string) => {
       // Search for the song on Saavn
       const searchQuery = `${trackName} ${artistName}`;
       const response = await axios.get(
-        `https://thingproxy.freeboard.io/fetch/https://www.jiosaavn.com/api.php?__call=autocomplete.get&query=${encodeURIComponent(
+        `https://185.246.87.210/api.php?__call=autocomplete.get&query=${encodeURIComponent(
           searchQuery
         )}&type=album,artist,playlist,track&limit=10`
       );

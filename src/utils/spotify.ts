@@ -1,3 +1,4 @@
+import useAuthStore from "../store/authStore";
 import { generateCodeChallenge, generateCodeVerifier } from "./code";
 
 // Authorization constants for Spotify API
@@ -41,6 +42,9 @@ export const exchangeCodeForToken = async (
   access_token: string | null;
   refresh_token: string | null;
 } | null> => {
+  const token = useAuthStore.getState().token;
+  if (token) return null;
+
   const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || "";
   const REDIRECT_URI =
     import.meta.env.VITE_REDIRECT_URI || window.location.origin;
@@ -68,8 +72,15 @@ export const exchangeCodeForToken = async (
     });
 
     if (!response.ok) {
-      console.error("Failed to exchange code for token:", response.statusText);
-      return null;
+      const data = await response.json();
+      console.error(
+        "Failed to exchange code for token:",
+        response.statusText,
+        JSON.stringify(data)
+      );
+      throw Error(
+        "Failed to exchange code" + response.statusText + JSON.stringify(data)
+      );
     }
 
     const data = await response.json();
@@ -79,7 +90,8 @@ export const exchangeCodeForToken = async (
     };
   } catch (error) {
     console.error("Error exchanging code for token:", error);
-    return null;
+
+    throw Error("Error to exchange code" + error);
   }
 };
 

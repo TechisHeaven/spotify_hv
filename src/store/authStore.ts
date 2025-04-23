@@ -36,17 +36,16 @@ const useAuthStore = create<AuthState>()(
       checkAuth: async () => {
         set({ isLoading: true });
 
-        // Check for token in URL (after redirect)
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get("code");
+        try {
+          // Check for code in URL
+          const urlParams = new URLSearchParams(window.location.search);
+          const code = urlParams.get("code");
 
-        if (code) {
-          try {
-            // Exchange the code for an access token
+          if (code) {
+            // Exchange code for tokens
             const token = await exchangeCodeForToken(code);
 
             if (token) {
-              // Save the token and mark the user as authenticated
               set({
                 token: token.access_token,
                 refreshToken: token.refresh_token,
@@ -55,62 +54,72 @@ const useAuthStore = create<AuthState>()(
               });
 
               // Fetch user profile
-              get().fetchUserProfile();
+              await get().fetchUserProfile();
 
               // Clear the code from the URL
               window.history.replaceState({}, document.title, "/");
               return true;
             } else {
-              set({ isAuthenticated: false, isLoading: false });
-              return false;
+              set({
+                error: "Failed to exchange code for tokens",
+                isAuthenticated: false,
+                isLoading: false,
+              });
+              window.history.replaceState({}, document.title, "/");
+              throw new Error("Failed to exchange code for tokens");
             }
-          } catch (error) {
-            console.error("Error exchanging code for token:", error);
-            set({ isAuthenticated: false, isLoading: false });
-            return false;
           }
+
+          // Check for token in store
+          const storedToken = get().token;
+
+          if (storedToken) {
+            // Validate the token
+            const spotifyApi = createSpotifyApi(storedToken);
+            const response = await spotifyApi.getCurrentUser();
+
+            if (response) {
+              set({ isAuthenticated: true, isLoading: false });
+              return true;
+            } else {
+              set({ isAuthenticated: false, isLoading: false });
+              throw new Error("Token validation failed");
+            }
+          }
+
+          // No valid token found
+          set({ isAuthenticated: false, isLoading: false });
+          return false;
+        } catch (error) {
+          console.error("Error during authentication check:", error);
+
+          // Attempt to refresh the token if possible
+          const refreshToken = get().refreshToken;
+          if (refreshToken) {
+            try {
+              const refreshedToken = await refreshAccessToken();
+              if (refreshedToken?.access_token) {
+                set({
+                  token: refreshedToken.access_token,
+                  refreshToken: refreshedToken.refresh_token,
+                  isAuthenticated: true,
+                  isLoading: false,
+                });
+
+                // Fetch user profile
+                await get().fetchUserProfile();
+                return true;
+              }
+            } catch (refreshError) {
+              set({ isAuthenticated: false, isLoading: false });
+              console.error("Error refreshing token:", refreshError);
+            }
+          }
+
+          // If all else fails, log the user out
+          set({ isAuthenticated: false, isLoading: false });
+          return false;
         }
-
-        // Check for token in store
-        const storedToken = get().token;
-
-        if (storedToken) {
-          set({ isAuthenticated: true, isLoading: false });
-          get().fetchUserProfile();
-          return true;
-        }
-
-        set({ isAuthenticated: false, isLoading: false });
-        return false;
-        // const { access_token, refresh_token } = getTokenFromUrl();
-        // if (access_token && refresh_token) {
-        //   // Remove token from URL
-        //   window.location.hash = "";
-
-        //   // Save token
-        //   set({
-        //     token: access_token,
-        //     refreshToken: refresh_token,
-        //     isAuthenticated: true,
-        //     isLoading: false,
-        //   });
-
-        //   // Fetch user data
-        //   get().fetchUserProfile();
-        //   return true;
-        // } else {
-        //   // Check for token in store
-        //   const storedToken = get().token;
-
-        //   if (storedToken) {
-        //     set({ isAuthenticated: true, isLoading: false });
-        //     get().fetchUserProfile();
-        //     return true;
-        //   }
-
-        //   set({ isAuthenticated: false, isLoading: false });
-        //   return false;
-        // }
       },
 
       login: async () => {

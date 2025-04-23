@@ -9,18 +9,31 @@ import LoadingSpinner from "../ui/LoadingSpinner";
 
 const MainLayout: React.FC = () => {
   const { isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const isCheckingAuth = React.useRef(false); // Flag to prevent concurrent calls
 
   React.useEffect(() => {
-    checkAuth();
-  }, []);
+    const initializeAuth = async () => {
+      if (!isCheckingAuth.current) {
+        isCheckingAuth.current = true;
+        await checkAuth();
+        isCheckingAuth.current = false;
+      }
+    };
 
-  // React.useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     refreshTokenFn(); // Call the refreshToken function from authStore
-  //   }, 1000 * 60 * 50); // Refresh every 50 minutes
+    initializeAuth();
+  }, [checkAuth]);
 
-  //   return () => clearInterval(interval);
-  // }, [refreshTokenFn]);
+  React.useEffect(() => {
+    const interval = setInterval(async () => {
+      if (!isCheckingAuth.current) {
+        isCheckingAuth.current = true;
+        await checkAuth();
+        isCheckingAuth.current = false;
+      }
+    }, 1000 * 60 * 50); // Every 50 minutes
+
+    return () => clearInterval(interval);
+  }, [checkAuth]);
 
   if (isLoading) {
     return (
